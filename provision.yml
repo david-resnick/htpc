@@ -66,6 +66,14 @@
         regexp: '^    "rpc-whitelist":'
         line: '    "rpc-whitelist": "127.0.0.1,192.168.*.*",'
       notify: restart transmission-daemon
+    - name: get lightsOn
+      get_url:
+        url: https://raw.githubusercontent.com/david-resnick/lightsOn/master/lightsOn.sh
+        dest: /opt
+    - name: make lightsOn executable
+      file: path=/opt/lightsOn.sh mode=+x
+    - name: run lightsOn
+      shell: "nohup /opt/lightsOn.sh &"
   handlers:
     - name: restart transmission-daemon
       service: name=transmission-daemon state=restarted
