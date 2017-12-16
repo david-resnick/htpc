@@ -1,0 +1,64 @@
+---
+
+- hosts: 192.168.1.104
+  become: yes
+  become_user: root
+  tasks:
+    - name: ensure that id_rsa_slave is an authorized_key
+      authorized_key:
+        user: htpc
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+    - name: Make sure we have a 'wheel' group
+      group:
+        name: wheel
+        state: present
+    - name: Allow 'wheel' group to have passwordless sudo
+      lineinfile:
+        dest: /etc/sudoers
+        state: present
+        regexp: '^%wheel'
+        line: '%wheel ALL=(ALL) NOPASSWD: ALL'
+        validate: visudo -cf %s
+    - name: Add htpc to wheel group
+      user:
+        name: htpc
+        groups: wheel
+        append: yes
+    - name: Make mount point
+      file:
+        name: /mnt/media
+        state: directory
+        mode: 0777
+    - name: Mount media drive
+      mount:
+        path: /mnt/media
+        src: UUID=50002F61002F4CF2
+        fstype: ntfs
+        opts: ntfs rw,auto,users,exec,nls=utf8,umask=003,gid=1000,uid=1000
+        state: mounted
+    - name: remove packages
+      apt:
+        name: gnome-screensaver
+        state: absent
+    - name: Add google chrome apt key
+      apt_key:
+        url: https://dl-ssl.google.com/linux/linux_signing_key.pub
+    - name: add google chrome apt repo
+      apt_repository:
+        repo: "{{ item }}"
+      with_items:
+        - "deb http://dl.google.com/linux/chrome/deb/ stable main"
+        - "ppa:team-xbmc/ppa"
+    - name: Update repositories cache and install google chrome
+      apt:
+        name: "{{ item }}"
+        update_cache: yes
+      register: apt
+      with_items:
+        - google-chrome-stable
+        - software-properties-common
+        - kodi
+        - xscreensaver
+        - xscreensaver-data-extra
+        - xscreensaver-gl-extra
+    - debug: var=apt
