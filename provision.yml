@@ -9,9 +9,7 @@
         user: htpc
         key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
     - name: Make sure we have a 'wheel' group
-      group:
-        name: wheel
-        state: present
+      group: name=wheel state=present
     - name: Allow 'wheel' group to have passwordless sudo
       lineinfile:
         dest: /etc/sudoers
@@ -20,15 +18,9 @@
         line: '%wheel ALL=(ALL) NOPASSWD: ALL'
         validate: visudo -cf %s
     - name: Add htpc to wheel group
-      user:
-        name: htpc
-        groups: wheel
-        append: yes
+      user: name=htpc groups=wheel append=yes
     - name: Make mount point
-      file:
-        name: /mnt/media
-        state: directory
-        mode: 0777
+      file: name=/mnt/media state=directory mode=0777
     - name: Mount media drive
       mount:
         path: /mnt/media
@@ -43,12 +35,13 @@
     - name: Add google chrome apt key
       apt_key:
         url: https://dl-ssl.google.com/linux/linux_signing_key.pub
-    - name: add google chrome apt repo
+    - name: add extra apt repos
       apt_repository:
         repo: "{{ item }}"
       with_items:
         - "deb http://dl.google.com/linux/chrome/deb/ stable main"
-        - "ppa:team-xbmc/ppa"
+        - ppa:team-xbmc/ppa
+        - ppa:transmissionbt/ppa
     - name: Update repositories cache and install google chrome
       apt:
         name: "{{ item }}"
@@ -56,9 +49,23 @@
       register: apt
       with_items:
         - google-chrome-stable
-        - software-properties-common
         - kodi
+        - software-properties-common
+        - transmission-cli
+        - transmission-common
+        - transmission-daemon
         - xscreensaver
         - xscreensaver-data-extra
         - xscreensaver-gl-extra
     - debug: var=apt
+    - name: Add htpc to debian-transmission group
+      user: name=htpc groups=debian-transmission append=yes
+    - name: configure transmission
+      lineinfile:
+        path: /var/lib/transmission-daemon/info/settings.json
+        regexp: '^    "rpc-whitelist":'
+        line: '    "rpc-whitelist": "127.0.0.1,192.168.*.*",'
+      notify: restart transmission-daemon
+  handlers:
+    - name: restart transmission-daemon
+      service: name=transmission-daemon state=restarted
