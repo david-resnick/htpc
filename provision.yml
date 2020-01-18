@@ -24,7 +24,7 @@
     - name: Mount media drive
       mount:
         path: /mnt/media
-        src: UUID=50002F61002F4CF2
+        src: UUID=6088F0A288F0783C
         fstype: ntfs
         opts: ntfs rw,auto,users,exec,nls=utf8,umask=003,gid=1000,uid=1000
         state: mounted
@@ -32,22 +32,20 @@
       apt:
         name: gnome-screensaver
         state: absent
-    - name: Add google chrome apt key
-      apt_key:
-        url: https://dl-ssl.google.com/linux/linux_signing_key.pub
-    - name: add extra apt repos
-      apt_repository:
-        repo: "{{ item }}"
-      with_items:
-        - "deb http://dl.google.com/linux/chrome/deb/ stable main"
-        - ppa:team-xbmc/ppa
-        - ppa:transmissionbt/ppa
+    # - name: Add google chrome apt key
+    #   apt_key:
+    #     url: https://dl-ssl.google.com/linux/linux_signing_key.pub
+    # - name: add extra apt repos
+    #   apt_repository:
+    #     repo: "{{ item }}"
+    #   with_items:
+    #     - "deb http://dl.google.com/linux/chrome/deb/ stable main"
+    #     - ppa:team-xbmc/ppa
+    #     - ppa:transmissionbt/ppa
     - name: Update repositories cache and install google chrome
       apt:
-        name: "{{ item }}"
-        update_cache: yes
-      register: apt
-      with_items:
+        name:
+        - aptitude
         - google-chrome-stable
         - kodi
         - software-properties-common
@@ -57,23 +55,31 @@
         - xscreensaver
         - xscreensaver-data-extra
         - xscreensaver-gl-extra
+        update_cache: yes
+      register: apt
     - debug: var=apt
     - name: Add htpc to debian-transmission group
       user: name=htpc groups=debian-transmission append=yes
-    - name: configure transmission
-      lineinfile:
-        path: /var/lib/transmission-daemon/info/settings.json
-        regexp: '^    "rpc-whitelist":'
-        line: '    "rpc-whitelist": "127.0.0.1,192.168.*.*",'
-      notify: restart transmission-daemon
-    - name: get lightsOn
-      get_url:
-        url: https://raw.githubusercontent.com/david-resnick/lightsOn/master/lightsOn.sh
-        dest: /opt
-    - name: make lightsOn executable
-      file: path=/opt/lightsOn.sh mode=+x
-    - name: run lightsOn
-      shell: "nohup /opt/lightsOn.sh &"
-  handlers:
-    - name: restart transmission-daemon
-      service: name=transmission-daemon state=restarted
+    - name: Add debian-transmission to htpc group
+      user: name=debian-transmission groups=htpc append=yes
+    - name: set dirname for transmission-daemon
+      set_fact:
+          transmission_incomplete_dir: /mnt/media/transmission-incomplete
+          transmission_default_download_dir: /mnt/media/movies
+    - name: create transmission directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: htpc
+      loop:
+          - "{{ transmission_incomplete_dir }}"
+          - "{{ transmission_default_download_dir }}"
+    - name: stop transmission-daemon
+      service: name=transmission-daemon state=stopped
+    - name: copy transmission-daemon settings
+      template:
+        src: transmission-config.json
+        dest: /etc/transmission-daemon/settings.json
+        owner: debian-transmission
+    - name: start transmission-daemon
+      service: name=transmission-daemon state=started
